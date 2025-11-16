@@ -20,7 +20,7 @@ export const DeliveryTrackingPage: React.FC = () => {
   const navigate = useNavigate();
   const { orderId } = useParams<{ orderId: string }>();
   
-  const [currentStatus, setCurrentStatus] = useState<'confirmed' | 'preparing' | 'out-for-delivery' | 'delivered'>('out-for-delivery');
+  const currentStatus: 'confirmed' | 'preparing' | 'out-for-delivery' | 'delivered' = 'out-for-delivery';
   const [estimatedTime, setEstimatedTime] = useState(15);
 
   // Mock delivery data

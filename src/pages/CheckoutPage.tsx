@@ -25,7 +25,7 @@ interface Product {
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
-  const { cart, addToCart, updateQuantity, clearCart, getTotalItems, getTotalPrice } = useCart();
+  const { cart, addToCart, updateQuantity, clearCart, getTotalPrice } = useCart();
   
   const [billingForm, setBillingForm] = useState<BillingForm>({
     fullName: '',
@@ -105,7 +105,7 @@ export const CheckoutPage: React.FC = () => {
   ];
 
   // Calculations
-  const subtotal = getTotal();
+  const subtotal = getTotalPrice();
   const discountAmount = (subtotal * billingForm.discountPercent) / 100;
   const afterDiscount = subtotal - discountAmount;
   const tax = (afterDiscount * 18) / 100;

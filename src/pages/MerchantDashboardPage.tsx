@@ -1,23 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SellerSidebar } from '../components/SellerSidebar';
 
 export const MerchantDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { shopId } = useParams<{ shopId: string }>();
-  const [userName, setUserName] = useState('');
 
   useEffect(() => {
     const isLoggedIn = localStorage.getItem('isLoggedIn');
     const userType = localStorage.getItem('userType');
-    const name = localStorage.getItem('userName');
     
     if (!isLoggedIn || userType !== 'seller') {
       navigate('/login');
       return;
     }
-    
-    setUserName(name || 'Merchant');
   }, [navigate, shopId]);
 
   const handleLogout = () => {

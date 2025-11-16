@@ -1,11 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../services/api';
-import { Shop } from '../types';
 import { MapView } from '../components/MapView';
 
 export const HomePage: React.FC = () => {
-  const [shops, setShops] = useState<Shop[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Mock popular stores data
@@ -17,14 +14,6 @@ export const HomePage: React.FC = () => {
     { id: '5', name: 'Singh Groceries', icon: '🛍️', rating: 4.5, distance: '2.0 km' },
     { id: '6', name: 'Verma Store', icon: '🏬', rating: 4.8, distance: '1.8 km' },
   ];
-
-  useEffect(() => {
-    api.getShops().then((res) => {
-      if (res.success) {
-        setShops(res.data);
-      }
-    });
-  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-stone-100 to-orange-50 dark:from-stone-900 dark:via-amber-950 dark:to-stone-900">

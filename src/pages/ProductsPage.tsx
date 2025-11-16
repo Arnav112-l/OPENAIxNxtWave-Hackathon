@@ -338,15 +338,18 @@ export const ProductsPage: React.FC = () => {
 
   const handleAddToCart = (product: Product) => {
     addToCart({
-      id: product.id,
-      productId: product.id,
+      id: String(product.id),
       name: product.name,
       nameHi: product.nameHi,
       price: product.price,
-      quantity: 1,
       unit: product.unit,
-      shopId: product.seller.id,
-      shopName: product.seller.name
+      image: product.image,
+      category: product.category,
+      description: product.description,
+      seller: {
+        id: String(product.seller.id),
+        name: product.seller.name
+      }
     });
   };
 
