@@ -344,7 +344,7 @@ export const ProductsPage: React.FC = () => {
       price: product.price,
       unit: product.unit,
       image: product.image,
-      category: product.category,
+      category: product.category as any,
       description: product.description,
       seller: {
         id: String(product.seller.id),
