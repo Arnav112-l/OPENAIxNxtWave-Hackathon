@@ -337,18 +337,19 @@ export const ProductsPage: React.FC = () => {
   }, [products, selectedCategory, searchQuery, sortBy, priceRange]);
 
   const handleAddToCart = (product: Product) => {
+    // Convert local Product to global Product type
     addToCart({
       id: String(product.id),
-      shopId: String(product.shopId),
+      shopId: String(product.seller.id),
       name: product.name,
       nameHi: product.nameHi,
       price: product.price,
       unit: product.unit,
       image: product.image,
-      category: product.category,
-      stock: product.stock || 100,
-      inStock: product.inStock !== false
-    } as Product);
+      category: 'staples', // Default category
+      stock: product.stock,
+      inStock: product.inStock
+    } as any);
   };
 
   return (
