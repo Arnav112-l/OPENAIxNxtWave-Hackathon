@@ -1,84 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CustomerSidebar } from '../components/CustomerSidebar';
-
-interface OrderItem {
-  id: string;
-  name: string;
-  nameHi: string;
-  quantity: number;
-  price: number;
-  unit: string;
-}
-
-interface Order {
-  id: string;
-  orderNumber: string;
-  date: string;
-  items: OrderItem[];
-  total: number;
-  status: 'pending' | 'confirmed' | 'preparing' | 'out-for-delivery' | 'delivered' | 'cancelled';
-  shopName: string;
-  deliveryAddress: string;
-  paymentMethod: string;
-}
-
-// Mock orders data
-const mockOrders: Order[] = [
-  {
-    id: '1',
-    orderNumber: 'KC-2024-001',
-    date: '2024-01-15T10:30:00',
-    items: [
-      { id: '1', name: 'Basmati Rice', nameHi: 'बासमती चावल', quantity: 2, price: 120, unit: 'kg' },
-      { id: '2', name: 'Atta (Wheat Flour)', nameHi: 'गेहूं का आटा', quantity: 5, price: 40, unit: 'kg' },
-    ],
-    total: 440,
-    status: 'delivered',
-    shopName: 'Sharma Kirana Store',
-    deliveryAddress: '123 Main St, New Delhi',
-    paymentMethod: 'UPI',
-  },
-  {
-    id: '2',
-    orderNumber: 'KC-2024-002',
-    date: '2024-01-16T14:20:00',
-    items: [
-      { id: '3', name: 'Toor Dal', nameHi: 'तूर दाल', quantity: 1, price: 140, unit: 'kg' },
-      { id: '4', name: 'Cooking Oil', nameHi: 'खाना पकाने का तेल', quantity: 2, price: 180, unit: 'L' },
-    ],
-    total: 530,
-    status: 'out-for-delivery',
-    shopName: 'Patel Grocery',
-    deliveryAddress: '123 Main St, New Delhi',
-    paymentMethod: 'Cash on Delivery',
-  },
-];
+import { storageService, type StoredOrder } from '../services/storage';
 
 export const OrdersPage: React.FC = () => {
   const navigate = useNavigate();
-  const [orders] = useState<Order[]>(mockOrders);
+  const [orders, setOrders] = useState<StoredOrder[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<StoredOrder | null>(null);
+
+  useEffect(() => {
+    // Get current customer's orders
+    const customerId = localStorage.getItem('userId') || 'customer1';
+    const customerOrders = storageService.getOrdersByCustomer(customerId);
+    setOrders(customerOrders);
+  }, []);
+
+  // Refresh orders (if needed for future use)
+  // const refreshOrders = () => {
+  //   const customerId = localStorage.getItem('userId') || 'customer1';
+  //   const customerOrders = storageService.getOrdersByCustomer(customerId);
+  //   setOrders(customerOrders);
+  // };
 
   const statusColors = {
     pending: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-400', emoji: '⏳' },
     confirmed: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400', emoji: '✓' },
     preparing: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-400', emoji: '👨‍🍳' },
-    'out-for-delivery': { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-400', emoji: '🚚' },
-    delivered: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-400', emoji: '✅' },
+    ready: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-400', emoji: '✅' },
+    delivered: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', emoji: '✅' },
     cancelled: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', emoji: '❌' },
   };
 
   const filterButtons = [
     { id: 'all', label: 'All Orders', count: orders.length },
     { id: 'delivered', label: 'Delivered', count: orders.filter(o => o.status === 'delivered').length },
-    { id: 'out-for-delivery', label: 'Active', count: orders.filter(o => o.status === 'out-for-delivery').length },
+    { id: 'active', label: 'Active', count: orders.filter(o => ['pending', 'confirmed', 'preparing', 'ready'].includes(o.status)).length },
     { id: 'cancelled', label: 'Cancelled', count: orders.filter(o => o.status === 'cancelled').length },
   ];
 
   const filteredOrders = filterStatus === 'all' 
     ? orders 
+    : filterStatus === 'active'
+    ? orders.filter(order => ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status))
     : orders.filter(order => order.status === filterStatus);
 
   const formatDate = (dateStr: string) => {
@@ -86,8 +50,15 @@ export const OrdersPage: React.FC = () => {
     return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  const handleTrackOrder = (orderId: string) => {
-    navigate(`/orders/${orderId}/track`);
+  const handleTrackOrder = () => {
+    navigate(`/delivery-tracking`);
+  };
+
+  // Get shop name for an order
+  const getShopName = (shopId: string) => {
+    const shops = storageService.getShops();
+    const shop = shops.find(s => s.id === shopId);
+    return shop ? shop.name : 'Unknown Shop';
   };
 
   return (
@@ -176,7 +147,7 @@ export const OrdersPage: React.FC = () => {
                             {order.orderNumber}
                           </h3>
                           <p className="text-sm text-stone-600 dark:text-stone-400">
-                            {formatDate(order.date)} • {order.shopName}
+                            {formatDate(order.createdAt)} • {getShopName(order.shopId)}
                           </p>
                         </div>
                       </div>
@@ -202,9 +173,9 @@ export const OrdersPage: React.FC = () => {
                       >
                         View Details
                       </button>
-                      {(order.status === 'out-for-delivery' || order.status === 'preparing') && (
+                      {(order.status === 'preparing' || order.status === 'ready') && (
                         <button
-                          onClick={() => handleTrackOrder(order.id)}
+                          onClick={() => handleTrackOrder()}
                           className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
                         >
                           Track Order
@@ -250,9 +221,9 @@ export const OrdersPage: React.FC = () => {
                     <h3 className="font-semibold text-stone-800 dark:text-stone-100 mb-2">Items</h3>
                     <div className="space-y-2">
                       {selectedOrder.items.map((item) => (
-                        <div key={item.id} className="flex justify-between items-center p-3 bg-stone-50 dark:bg-stone-700/50 rounded-xl">
+                        <div key={item.productId} className="flex justify-between items-center p-3 bg-stone-50 dark:bg-stone-700/50 rounded-xl">
                           <div>
-                            <div className="font-semibold text-stone-800 dark:text-stone-100">{item.name}</div>
+                            <div className="font-semibold text-stone-800 dark:text-stone-100">{item.productName}</div>
                             <div className="text-sm text-stone-600 dark:text-stone-400">{item.quantity} {item.unit}</div>
                           </div>
                           <div className="text-amber-600 dark:text-amber-400 font-bold">₹{item.price * item.quantity}</div>
@@ -263,12 +234,12 @@ export const OrdersPage: React.FC = () => {
 
                   <div>
                     <h3 className="font-semibold text-stone-800 dark:text-stone-100 mb-2">Delivery Address</h3>
-                    <p className="text-stone-600 dark:text-stone-400">{selectedOrder.deliveryAddress}</p>
+                    <p className="text-stone-600 dark:text-stone-400">{selectedOrder.customerAddress}</p>
                   </div>
 
                   <div>
                     <h3 className="font-semibold text-stone-800 dark:text-stone-100 mb-2">Payment Method</h3>
-                    <p className="text-stone-600 dark:text-stone-400">{selectedOrder.paymentMethod}</p>
+                    <p className="text-stone-600 dark:text-stone-400">UPI/Cash on Delivery</p>
                   </div>
 
                   <div className="pt-4 border-t border-stone-200 dark:border-stone-700">

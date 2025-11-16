@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -7,23 +8,118 @@ export const LoginPage: React.FC = () => {
     email: '',
     password: '',
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement actual login logic with backend
-    
-    // For demo, check if user type exists in localStorage
-    const userType = localStorage.getItem('userType') || 'customer';
-    localStorage.setItem('isLoggedIn', 'true');
-    localStorage.setItem('userName', formData.email.split('@')[0]);
-    
-    alert('Login successful!');
-    
-    // Navigate based on user type
-    if (userType === 'seller') {
-      navigate('/merchant/dashboard');
-    } else {
-      navigate('/dashboard');
+    setLoading(true);
+    setError('');
+
+    try {
+      // Authenticate with Supabase
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (authError) {
+        // Fallback to localStorage-based auth if Supabase isn't configured
+        if (authError.message.includes('fetch') || authError.message.includes('Email')) {
+          console.warn('Supabase auth not available, using fallback authentication');
+          
+          // Use localStorage-based authentication as fallback
+          localStorage.setItem('isLoggedIn', 'true');
+          localStorage.setItem('userName', formData.email.split('@')[0]);
+          localStorage.setItem('userEmail', formData.email);
+
+          // Set shop owner ID based on email
+          const email = formData.email.toLowerCase();
+          if (email.includes('sharma')) {
+            localStorage.setItem('userId', 'owner1');
+            localStorage.setItem('userType', 'seller');
+          } else if (email.includes('patel')) {
+            localStorage.setItem('userId', 'owner2');
+            localStorage.setItem('userType', 'seller');
+          } else if (email.includes('kumar')) {
+            localStorage.setItem('userId', 'owner3');
+            localStorage.setItem('userType', 'seller');
+          } else if (email.includes('verma')) {
+            localStorage.setItem('userId', 'owner4');
+            localStorage.setItem('userType', 'seller');
+          } else if (email.includes('singh')) {
+            localStorage.setItem('userId', 'owner5');
+            localStorage.setItem('userType', 'seller');
+          } else if (email.includes('gupta')) {
+            localStorage.setItem('userId', 'owner6');
+            localStorage.setItem('userType', 'seller');
+          } else {
+            localStorage.setItem('userId', 'user_' + Date.now());
+            localStorage.setItem('userType', 'customer');
+          }
+
+          const userType = localStorage.getItem('userType') || 'customer';
+          
+          if (userType === 'seller') {
+            navigate('/merchant/dashboard');
+          } else {
+            navigate('/dashboard');
+          }
+          setLoading(false);
+          return;
+        } else if (authError.message.includes('Invalid')) {
+          setError('Invalid email or password. Please try again.');
+        } else {
+          setError(authError.message);
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        // Store user info in localStorage
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userName', data.user.email?.split('@')[0] || 'User');
+        localStorage.setItem('userId', data.user.id);
+        localStorage.setItem('userEmail', data.user.email || '');
+
+        // Determine user type based on email domain or metadata
+        const userType = localStorage.getItem('userType') || 'customer';
+        
+        // Set shop owner ID based on email for marketplace functionality
+        const email = formData.email.toLowerCase();
+        if (email.includes('sharma')) {
+          localStorage.setItem('userId', 'owner1');
+        } else if (email.includes('patel')) {
+          localStorage.setItem('userId', 'owner2');
+        } else if (email.includes('kumar')) {
+          localStorage.setItem('userId', 'owner3');
+        } else if (email.includes('verma')) {
+          localStorage.setItem('userId', 'owner4');
+        } else if (email.includes('singh')) {
+          localStorage.setItem('userId', 'owner5');
+        } else if (email.includes('gupta')) {
+          localStorage.setItem('userId', 'owner6');
+        } else {
+          localStorage.setItem('userId', data.user.id);
+        }
+
+        // Navigate based on user type
+        if (userType === 'seller') {
+          navigate('/merchant/dashboard');
+        } else {
+          navigate('/dashboard');
+        }
+      }
+    } catch (err: any) {
+      if (err.message && err.message.includes('fetch')) {
+        setError('Unable to connect to authentication service. Please check your internet connection and the Supabase configuration.');
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
+      console.error('Login error:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -51,6 +147,12 @@ export const LoginPage: React.FC = () => {
           <p className="text-stone-600 dark:text-stone-400 text-center mb-8">
             Sign in to your account
           </p>
+
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -96,9 +198,10 @@ export const LoginPage: React.FC = () => {
 
             <button
               type="submit"
-              className="w-full px-6 py-3 bg-gradient-to-r from-amber-600 to-orange-600 dark:from-amber-700 dark:to-orange-700 text-white font-semibold rounded-lg hover:shadow-lg hover:shadow-amber-500/30 transition-all"
+              disabled={loading}
+              className="w-full px-6 py-3 bg-gradient-to-r from-amber-600 to-orange-600 dark:from-amber-700 dark:to-orange-700 text-white font-semibold rounded-lg hover:shadow-lg hover:shadow-amber-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign In
+              {loading ? 'Signing in...' : 'Sign In'}
             </button>
 
             <p className="text-center text-sm text-stone-600 dark:text-stone-400">

@@ -5,18 +5,21 @@ import App from './App';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { CartProvider } from './contexts/CartContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { AuthProvider } from './contexts/AuthContext';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <ThemeProvider>
-        <LanguageProvider>
-          <CartProvider>
-            <App />
-          </CartProvider>
-        </LanguageProvider>
-      </ThemeProvider>
+      <AuthProvider>
+        <ThemeProvider>
+          <LanguageProvider>
+            <CartProvider>
+              <App />
+            </CartProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

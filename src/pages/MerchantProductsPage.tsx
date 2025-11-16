@@ -1,31 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SellerSidebar } from '../components/SellerSidebar';
-
-interface Product {
-  id: string;
-  name: string;
-  nameHi: string;
-  category: string;
-  price: number;
-  unit: string;
-  stock: number;
-  inStock: boolean;
-}
+import { storageService, type StoredProduct } from '../services/storage';
 
 export const MerchantProductsPage: React.FC = () => {
   const navigate = useNavigate();
-  const [products, setProducts] = useState<Product[]>([
-    { id: '1', name: 'Basmati Rice', nameHi: 'बासमती चावल', category: 'grains', price: 120, unit: 'kg', stock: 50, inStock: true },
-    { id: '2', name: 'Atta (Wheat Flour)', nameHi: 'गेहूं का आटा', category: 'grains', price: 40, unit: 'kg', stock: 100, inStock: true },
-    { id: '3', name: 'Toor Dal', nameHi: 'तूर दाल', category: 'pulses', price: 140, unit: 'kg', stock: 5, inStock: true },
-    { id: '4', name: 'Cooking Oil', nameHi: 'खाना पकाने का तेल', category: 'oil', price: 180, unit: 'L', stock: 20, inStock: true },
-    { id: '5', name: 'Sugar', nameHi: 'चीनी', category: 'groceries', price: 45, unit: 'kg', stock: 0, inStock: false },
-  ]);
+  const [products, setProducts] = useState<StoredProduct[]>([]);
+  const [currentOwnerId, setCurrentOwnerId] = useState<string>('');
   
   const [filterCategory, setFilterCategory] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<StoredProduct | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     nameHi: '',
@@ -33,6 +18,8 @@ export const MerchantProductsPage: React.FC = () => {
     price: '',
     unit: 'kg',
     stock: '',
+    description: '',
+    image: '',
   });
 
   useEffect(() => {
@@ -41,8 +28,30 @@ export const MerchantProductsPage: React.FC = () => {
     
     if (!isLoggedIn || userType !== 'seller') {
       navigate('/login');
+      return;
+    }
+
+    // Get current user's shop info
+    const ownerId = localStorage.getItem('userId') || 'owner1';
+    const shops = storageService.getShops();
+    const userShop = shops.find(s => s.ownerId === ownerId);
+    
+    if (userShop) {
+      setCurrentOwnerId(ownerId);
+      
+      // Load products for this owner
+      const ownerProducts = storageService.getProductsByOwner(ownerId);
+      setProducts(ownerProducts);
     }
   }, [navigate]);
+
+  // Refresh products from storage
+  const refreshProducts = () => {
+    if (currentOwnerId) {
+      const ownerProducts = storageService.getProductsByOwner(currentOwnerId);
+      setProducts(ownerProducts);
+    }
+  };
 
   const categories = [
     { id: 'all', name: 'All Products', emoji: '📦' },
@@ -51,6 +60,11 @@ export const MerchantProductsPage: React.FC = () => {
     { id: 'oil', name: 'Oil & Ghee', emoji: '🛢️' },
     { id: 'groceries', name: 'Groceries', emoji: '🛒' },
     { id: 'spices', name: 'Spices', emoji: '🌶️' },
+    { id: 'medicines', name: 'Medicines', emoji: '💊' },
+    { id: 'supplements', name: 'Supplements', emoji: '💉' },
+    { id: 'medical-equipment', name: 'Medical Equipment', emoji: '🩺' },
+    { id: 'electronics', name: 'Electronics', emoji: '📱' },
+    { id: 'accessories', name: 'Accessories', emoji: '🔌' },
   ];
 
   const filteredProducts = filterCategory === 'all' 
@@ -58,20 +72,25 @@ export const MerchantProductsPage: React.FC = () => {
     : products.filter(p => p.category === filterCategory);
 
   const handleToggleStock = (productId: string) => {
-    setProducts(prev =>
-      prev.map(p => p.id === productId ? { ...p, inStock: !p.inStock } : p)
-    );
+    const product = products.find(p => p.id === productId);
+    if (product) {
+      storageService.updateProduct(productId, { inStock: !product.inStock });
+      refreshProducts();
+    }
   };
 
   const handleUpdateStock = (productId: string, newStock: number) => {
-    setProducts(prev =>
-      prev.map(p => p.id === productId ? { ...p, stock: newStock, inStock: newStock > 0 } : p)
-    );
+    storageService.updateProduct(productId, { 
+      stock: newStock, 
+      inStock: newStock > 0 
+    });
+    refreshProducts();
   };
 
   const handleDeleteProduct = (productId: string) => {
     if (confirm('Are you sure you want to delete this product?')) {
-      setProducts(prev => prev.filter(p => p.id !== productId));
+      storageService.deleteProduct(productId);
+      refreshProducts();
     }
   };
 
@@ -81,18 +100,30 @@ export const MerchantProductsPage: React.FC = () => {
       return;
     }
 
-    const newProduct: Product = {
-      id: String(Date.now()),
+    const shops = storageService.getShops();
+    const userShop = shops.find(s => s.ownerId === currentOwnerId);
+    
+    if (!userShop) {
+      alert('Shop not found');
+      return;
+    }
+
+    const newProduct: Omit<StoredProduct, 'id' | 'createdAt'> = {
+      shopId: userShop.id,
+      shopName: userShop.name,
       name: formData.name,
       nameHi: formData.nameHi || formData.name,
+      description: formData.description || '',
       category: formData.category,
       price: Number(formData.price),
       unit: formData.unit,
       stock: Number(formData.stock),
       inStock: Number(formData.stock) > 0,
+      image: formData.image || '📦',
     };
 
-    setProducts(prev => [...prev, newProduct]);
+    storageService.addProduct(newProduct);
+    refreshProducts();
     setShowAddModal(false);
     setFormData({
       name: '',
@@ -101,6 +132,8 @@ export const MerchantProductsPage: React.FC = () => {
       price: '',
       unit: 'kg',
       stock: '',
+      description: '',
+      image: '',
     });
   };
 
@@ -110,23 +143,19 @@ export const MerchantProductsPage: React.FC = () => {
       return;
     }
 
-    setProducts(prev =>
-      prev.map(p =>
-        p.id === editingProduct.id
-          ? {
-              ...p,
-              name: formData.name,
-              nameHi: formData.nameHi || formData.name,
-              category: formData.category,
-              price: Number(formData.price),
-              unit: formData.unit,
-              stock: Number(formData.stock),
-              inStock: Number(formData.stock) > 0,
-            }
-          : p
-      )
-    );
+    storageService.updateProduct(editingProduct.id, {
+      name: formData.name,
+      nameHi: formData.nameHi || formData.name,
+      description: formData.description || '',
+      category: formData.category,
+      price: Number(formData.price),
+      unit: formData.unit,
+      stock: Number(formData.stock),
+      inStock: Number(formData.stock) > 0,
+      image: formData.image || editingProduct.image,
+    });
 
+    refreshProducts();
     setEditingProduct(null);
     setFormData({
       name: '',
@@ -135,10 +164,12 @@ export const MerchantProductsPage: React.FC = () => {
       price: '',
       unit: 'kg',
       stock: '',
+      description: '',
+      image: '',
     });
   };
 
-  const openEditModal = (product: Product) => {
+  const openEditModal = (product: StoredProduct) => {
     setEditingProduct(product);
     setFormData({
       name: product.name,
@@ -147,6 +178,8 @@ export const MerchantProductsPage: React.FC = () => {
       price: String(product.price),
       unit: product.unit,
       stock: String(product.stock),
+      description: product.description,
+      image: product.image || '',
     });
   };
 
@@ -345,6 +378,8 @@ export const MerchantProductsPage: React.FC = () => {
                     price: '',
                     unit: 'kg',
                     stock: '',
+                    description: '',
+                    image: '',
                   });
                 }}
                 className="w-9 h-9 rounded-lg bg-stone-100 dark:bg-stone-700 flex items-center justify-center hover:bg-stone-200 dark:hover:bg-stone-600 transition-all"
@@ -385,24 +420,54 @@ export const MerchantProductsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-2">
-                  Category *
-                </label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
-                >
-                  <option value="grains">Grains 🌾</option>
-                  <option value="pulses">Pulses 🫘</option>
-                  <option value="oil">Oil & Ghee 🛢️</option>
-                  <option value="groceries">Groceries 🛒</option>
-                  <option value="spices">Spices 🌶️</option>
-                </select>
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-2">
+                    Category *
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                  >
+                    <option value="grains">Grains 🌾</option>
+                    <option value="pulses">Pulses 🫘</option>
+                    <option value="oil">Oil & Ghee 🛢️</option>
+                    <option value="groceries">Groceries 🛒</option>
+                    <option value="spices">Spices 🌶️</option>
+                    <option value="medicines">Medicines 💊</option>
+                    <option value="supplements">Supplements 💉</option>
+                    <option value="medical-equipment">Medical Equipment 🩺</option>
+                    <option value="electronics">Electronics 📱</option>
+                    <option value="accessories">Accessories 🔌</option>
+                  </select>
+                </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Brief description of the product"
+                    rows={2}
+                    className="w-full px-4 py-2.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-2">
+                    Icon/Emoji (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.image}
+                    onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                    placeholder="e.g., 🌾 or 📦"
+                    maxLength={2}
+                    className="w-full px-4 py-2.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                  />
+                </div>              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-2">
                     Price (₹) *
@@ -466,6 +531,8 @@ export const MerchantProductsPage: React.FC = () => {
                     price: '',
                     unit: 'kg',
                     stock: '',
+                    description: '',
+                    image: '',
                   });
                 }}
                 className="flex-1 py-3 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-medium rounded-lg border border-stone-300 dark:border-stone-600 hover:bg-stone-50 dark:hover:bg-stone-700 transition-all"

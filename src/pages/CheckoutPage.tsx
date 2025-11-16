@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { CustomerSidebar } from '../components/CustomerSidebar';
+import { storageService } from '../services/storage';
 
 interface BillingForm {
   fullName: string;
@@ -174,6 +175,47 @@ export const CheckoutPage: React.FC = () => {
       return;
     }
 
+    // Group cart items by shop
+    const itemsByShop: Record<string, typeof cart> = {};
+    cart.forEach(item => {
+      const shopId = item.product.shopId;
+      if (!itemsByShop[shopId]) {
+        itemsByShop[shopId] = [];
+      }
+      itemsByShop[shopId].push(item);
+    });
+
+    // Create orders for each shop
+    const customerId = localStorage.getItem('userId') || 'customer1';
+    
+    Object.entries(itemsByShop).forEach(([shopId, items]) => {
+      const shopTotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+      const shopDiscountAmount = (shopTotal * billingForm.discountPercent) / 100;
+      const shopAfterDiscount = shopTotal - shopDiscountAmount;
+      const shopTax = (shopAfterDiscount * 18) / 100;
+      const shopShipping = shopAfterDiscount > 0 && shopAfterDiscount < 1000 ? 49 : 0;
+      const shopFinalTotal = shopAfterDiscount + shopTax + shopShipping;
+
+      // Create order in storage
+      storageService.createOrder({
+        shopId,
+        shopName: storageService.getShop(shopId)?.name || 'Unknown Shop',
+        customerId,
+        customerName: billingForm.fullName,
+        customerPhone: billingForm.phone,
+        customerAddress: billingForm.address,
+        items: items.map(item => ({
+          productId: item.product.id,
+          productName: item.product.name,
+          quantity: item.quantity,
+          price: item.product.price,
+          unit: item.product.unit,
+        })),
+        total: shopFinalTotal,
+        status: 'pending',
+      });
+    });
+
     const invoice = {
       invoiceNumber: `INV-${Date.now()}`,
       date: new Date().toLocaleDateString('en-IN'),
@@ -191,6 +233,11 @@ export const CheckoutPage: React.FC = () => {
 
     setInvoiceData(invoice);
     setShowInvoice(true);
+    
+    // Clear cart after successful order creation
+    setTimeout(() => {
+      clearCart();
+    }, 1000);
   };
 
   const printInvoice = () => {

@@ -1,19 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { MapView } from '../components/MapView';
+import { storageService } from '../services/storage';
 
 export const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [shops, setShops] = useState(storageService.getShops());
 
-  // Mock popular stores data
-  const popularStores = [
-    { id: '1', name: 'Sharma Kirana', icon: '🏪', rating: 4.8, distance: '0.5 km' },
-    { id: '2', name: 'Patel Provisions', icon: '🛒', rating: 4.6, distance: '1.2 km' },
-    { id: '3', name: 'Kumar Store', icon: '🏬', rating: 4.9, distance: '0.8 km' },
-    { id: '4', name: 'Gupta General Store', icon: '🏪', rating: 4.7, distance: '1.5 km' },
-    { id: '5', name: 'Singh Groceries', icon: '🛍️', rating: 4.5, distance: '2.0 km' },
-    { id: '6', name: 'Verma Store', icon: '🏬', rating: 4.8, distance: '1.8 km' },
-  ];
+  useEffect(() => {
+    // Refresh shops from storage
+    setShops(storageService.getShops());
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-stone-100 to-orange-50 dark:from-stone-900 dark:via-amber-950 dark:to-stone-900">
@@ -58,7 +55,7 @@ export const HomePage: React.FC = () => {
                 </div>
                 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4">
-                  {popularStores.map((store, index) => (
+                  {shops.map((store, index) => (
                     <Link
                       key={store.id}
                       to={`/shop/${store.id}`}
@@ -78,6 +75,9 @@ export const HomePage: React.FC = () => {
                         <span>•</span>
                         <span>📍 {store.distance}</span>
                       </div>
+                      <span className="mt-2 text-xs px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200">
+                        {store.category === 'general' ? 'General' : store.category === 'medical' ? 'Medical' : 'Electronics'}
+                      </span>
                     </Link>
                   ))}
                 </div>

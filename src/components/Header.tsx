@@ -1,24 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export const Header: React.FC = () => {
   const { getTotalItems } = useCart();
   const { theme, toggleTheme } = useTheme();
+  const { signOut, user } = useAuth();
+  const navigate = useNavigate();
   const cartCount = getTotalItems();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Derive isLoggedIn from both localStorage and Supabase auth
+  const isLoggedIn = !!localStorage.getItem('isLoggedIn') || !!user;
+
   useEffect(() => {
-    const loggedIn = localStorage.getItem('isLoggedIn');
     const name = localStorage.getItem('userName');
-    setIsLoggedIn(!!loggedIn);
-    setUserName(name || '');
-  }, []);
+    setUserName(name || user?.email?.split('@')[0] || '');
+  }, [user]);
+
+  const handleLogout = async () => {
+    await signOut();
+    setUserName('');
+    navigate('/');
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +93,12 @@ export const Header: React.FC = () => {
                   >
                     support
                   </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="text-stone-700 dark:text-stone-300 px-4 py-2 rounded-lg bg-amber-50 dark:bg-stone-800/50 hover:bg-amber-100 dark:hover:bg-stone-800 border border-amber-200/50 dark:border-amber-900/30 hover:border-amber-300 dark:hover:border-amber-800 transition-all text-sm font-light tracking-wide"
+                  >
+                    logout
+                  </button>
                 </>
               ) : (
                 <>
@@ -229,6 +244,15 @@ export const Header: React.FC = () => {
                 >
                   support
                 </Link>
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setIsMenuOpen(false);
+                  }}
+                  className="block w-full text-left text-stone-700 dark:text-stone-300 px-4 py-2 rounded-lg bg-amber-50 dark:bg-stone-800/50 hover:bg-amber-100 dark:hover:bg-stone-800 border border-amber-200/50 dark:border-amber-900/30 transition-all text-sm font-light tracking-wide"
+                >
+                  logout
+                </button>
               </>
             ) : (
               <>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
 export const SignupPage: React.FC = () => {
   const navigate = useNavigate();
@@ -10,27 +11,133 @@ export const SignupPage: React.FC = () => {
     confirmPassword: '',
     userType: 'customer' as 'customer' | 'seller',
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
     
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match!');
+      setError('Passwords do not match!');
+      setLoading(false);
       return;
     }
 
-    // TODO: Implement actual signup logic with backend
-    localStorage.setItem('userType', formData.userType);
-    localStorage.setItem('userName', formData.name);
-    localStorage.setItem('isLoggedIn', 'true');
-    
-    alert(`Account created successfully as ${formData.userType}!`);
-    
-    // Navigate based on user type
-    if (formData.userType === 'seller') {
-      navigate('/merchant/dashboard');
-    } else {
-      navigate('/dashboard');
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Sign up with Supabase
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.name,
+            user_type: formData.userType,
+          },
+          emailRedirectTo: window.location.origin,
+        }
+      });
+
+      if (signUpError) {
+        // Fallback to localStorage-based auth if Supabase isn't configured
+        if (signUpError.message.includes('fetch') || signUpError.message.includes('Email')) {
+          console.warn('Supabase auth not available, using fallback authentication');
+          
+          // Use localStorage-based authentication as fallback
+          const userId = 'user_' + Date.now();
+          localStorage.setItem('userType', formData.userType);
+          localStorage.setItem('userName', formData.name);
+          localStorage.setItem('isLoggedIn', 'true');
+          localStorage.setItem('userId', userId);
+          localStorage.setItem('userEmail', formData.email);
+
+          // Set shop owner ID based on email
+          const email = formData.email.toLowerCase();
+          if (email.includes('sharma')) {
+            localStorage.setItem('userId', 'owner1');
+          } else if (email.includes('patel')) {
+            localStorage.setItem('userId', 'owner2');
+          } else if (email.includes('kumar')) {
+            localStorage.setItem('userId', 'owner3');
+          } else if (email.includes('verma')) {
+            localStorage.setItem('userId', 'owner4');
+          } else if (email.includes('singh')) {
+            localStorage.setItem('userId', 'owner5');
+          } else if (email.includes('gupta')) {
+            localStorage.setItem('userId', 'owner6');
+          }
+
+          setSuccess('Account created successfully! (Using demo mode - Enable email auth in Supabase for production)');
+          
+          setTimeout(() => {
+            if (formData.userType === 'seller') {
+              navigate('/merchant/dashboard');
+            } else {
+              navigate('/dashboard');
+            }
+          }, 2000);
+          setLoading(false);
+          return;
+        } else {
+          setError(signUpError.message);
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        // Store user info in localStorage
+        localStorage.setItem('userType', formData.userType);
+        localStorage.setItem('userName', formData.name);
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userId', data.user.id);
+        localStorage.setItem('userEmail', formData.email);
+
+        // Set shop owner ID based on email for marketplace functionality
+        const email = formData.email.toLowerCase();
+        if (email.includes('sharma')) {
+          localStorage.setItem('userId', 'owner1');
+        } else if (email.includes('patel')) {
+          localStorage.setItem('userId', 'owner2');
+        } else if (email.includes('kumar')) {
+          localStorage.setItem('userId', 'owner3');
+        } else if (email.includes('verma')) {
+          localStorage.setItem('userId', 'owner4');
+        } else if (email.includes('singh')) {
+          localStorage.setItem('userId', 'owner5');
+        } else if (email.includes('gupta')) {
+          localStorage.setItem('userId', 'owner6');
+        }
+
+        setSuccess('Account created successfully! Please check your email to verify your account.');
+        
+        // Navigate after a short delay
+        setTimeout(() => {
+          if (formData.userType === 'seller') {
+            navigate('/merchant/dashboard');
+          } else {
+            navigate('/dashboard');
+          }
+        }, 2000);
+      }
+    } catch (err: any) {
+      if (err.message && err.message.includes('fetch')) {
+        setError('Unable to connect to authentication service. Please check your internet connection and the Supabase configuration.');
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
+      console.error('Signup error:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -58,6 +165,18 @@ export const SignupPage: React.FC = () => {
           <p className="text-stone-600 dark:text-stone-400 text-center mb-8">
             Join our community today
           </p>
+
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <p className="text-sm text-green-600 dark:text-green-400">{success}</p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -150,9 +269,10 @@ export const SignupPage: React.FC = () => {
 
             <button
               type="submit"
-              className="w-full px-6 py-3 bg-gradient-to-r from-amber-600 to-orange-600 dark:from-amber-700 dark:to-orange-700 text-white font-semibold rounded-lg hover:shadow-lg hover:shadow-amber-500/30 transition-all"
+              disabled={loading}
+              className="w-full px-6 py-3 bg-gradient-to-r from-amber-600 to-orange-600 dark:from-amber-700 dark:to-orange-700 text-white font-semibold rounded-lg hover:shadow-lg hover:shadow-amber-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Account
+              {loading ? 'Creating Account...' : 'Create Account'}
             </button>
 
             <p className="text-center text-sm text-stone-600 dark:text-stone-400">

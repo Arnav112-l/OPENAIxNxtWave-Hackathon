@@ -1,59 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SellerSidebar } from '../components/SellerSidebar';
-
-interface Order {
-  id: string;
-  orderNumber: string;
-  customerName: string;
-  items: number;
-  total: number;
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
-  date: string;
-  address: string;
-  phone: string;
-}
+import { storageService, type StoredOrder } from '../services/storage';
 
 export const MerchantOrdersPage: React.FC = () => {
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<Order[]>([
-    {
-      id: '1',
-      orderNumber: 'KC-2024-001',
-      customerName: 'Rahul Sharma',
-      items: 5,
-      total: 850,
-      status: 'pending',
-      date: '2024-01-15T10:30:00',
-      address: '123 Main St, New Delhi',
-      phone: '+91 98765 43210',
-    },
-    {
-      id: '2',
-      orderNumber: 'KC-2024-002',
-      customerName: 'Priya Patel',
-      items: 3,
-      total: 450,
-      status: 'preparing',
-      date: '2024-01-15T11:15:00',
-      address: '456 Park Ave, Mumbai',
-      phone: '+91 98765 43211',
-    },
-    {
-      id: '3',
-      orderNumber: 'KC-2024-003',
-      customerName: 'Amit Kumar',
-      items: 7,
-      total: 1200,
-      status: 'ready',
-      date: '2024-01-15T12:00:00',
-      address: '789 Ring Road, Bangalore',
-      phone: '+91 98765 43212',
-    },
-  ]);
-
+  const [orders, setOrders] = useState<StoredOrder[]>([]);
+  const [currentShopId, setCurrentShopId] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<StoredOrder | null>(null);
 
   useEffect(() => {
     const isLoggedIn = localStorage.getItem('isLoggedIn');
@@ -61,8 +16,29 @@ export const MerchantOrdersPage: React.FC = () => {
     
     if (!isLoggedIn || userType !== 'seller') {
       navigate('/login');
+      return;
+    }
+
+    // Get current user's shop
+    const ownerId = localStorage.getItem('userId') || 'owner1';
+    const shops = storageService.getShops();
+    const userShop = shops.find(s => s.ownerId === ownerId);
+    
+    if (userShop) {
+      setCurrentShopId(userShop.id);
+      // Load orders for this shop
+      const shopOrders = storageService.getOrdersByShop(userShop.id);
+      setOrders(shopOrders);
     }
   }, [navigate]);
+
+  // Refresh orders from storage
+  const refreshOrders = () => {
+    if (currentShopId) {
+      const shopOrders = storageService.getOrdersByShop(currentShopId);
+      setOrders(shopOrders);
+    }
+  };
 
   const statusConfig = {
     pending: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-400', emoji: '⏳', label: 'Pending' },
@@ -81,19 +57,23 @@ export const MerchantOrdersPage: React.FC = () => {
     { id: 'delivered', label: 'Delivered', count: orders.filter(o => o.status === 'delivered').length },
   ];
 
-  const filteredOrders = filterStatus === 'all' 
-    ? orders 
-    : orders.filter(order => order.status === filterStatus);
+  const filteredOrders = filterStatus === 'all'
+    ? orders
+    : orders.filter(o => o.status === filterStatus);
 
-  const handleStatusChange = (orderId: string, newStatus: Order['status']) => {
-    setOrders(prev =>
-      prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o)
-    );
+  const handleUpdateStatus = (orderId: string, newStatus: StoredOrder['status']) => {
+    storageService.updateOrderStatus(orderId, newStatus);
+    refreshOrders();
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   return (
@@ -190,7 +170,7 @@ export const MerchantOrdersPage: React.FC = () => {
                           {order.orderNumber}
                         </h3>
                         <p className="text-sm text-stone-600 dark:text-stone-400">
-                          {order.customerName} • {formatDate(order.date)}
+                          {order.customerName} • {formatDate(order.createdAt)}
                         </p>
                       </div>
                     </div>
@@ -198,7 +178,7 @@ export const MerchantOrdersPage: React.FC = () => {
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-stone-600 dark:text-stone-400">Items:</span>
-                        <span className="ml-2 font-semibold text-stone-800 dark:text-stone-100">{order.items}</span>
+                        <span className="ml-2 font-semibold text-stone-800 dark:text-stone-100">{order.items.length}</span>
                       </div>
                       <div>
                         <span className="text-stone-600 dark:text-stone-400">Total:</span>
@@ -206,11 +186,11 @@ export const MerchantOrdersPage: React.FC = () => {
                       </div>
                       <div className="col-span-2">
                         <span className="text-stone-600 dark:text-stone-400">📍</span>
-                        <span className="ml-2 text-stone-800 dark:text-stone-100">{order.address}</span>
+                        <span className="ml-2 text-stone-800 dark:text-stone-100">{order.customerAddress}</span>
                       </div>
                       <div>
                         <span className="text-stone-600 dark:text-stone-400">📞</span>
-                        <span className="ml-2 text-stone-800 dark:text-stone-100">{order.phone}</span>
+                        <span className="ml-2 text-stone-800 dark:text-stone-100">{order.customerPhone}</span>
                       </div>
                     </div>
                   </div>
@@ -225,7 +205,7 @@ export const MerchantOrdersPage: React.FC = () => {
                     <div className="flex gap-2">
                       {order.status === 'pending' && (
                         <button
-                          onClick={() => handleStatusChange(order.id, 'confirmed')}
+                          onClick={() => handleUpdateStatus(order.id, 'confirmed')}
                           className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-xl transition-all"
                         >
                           Confirm
@@ -233,7 +213,7 @@ export const MerchantOrdersPage: React.FC = () => {
                       )}
                       {order.status === 'confirmed' && (
                         <button
-                          onClick={() => handleStatusChange(order.id, 'preparing')}
+                          onClick={() => handleUpdateStatus(order.id, 'preparing')}
                           className="flex-1 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-sm font-semibold rounded-xl transition-all"
                         >
                           Start Preparing
@@ -241,7 +221,7 @@ export const MerchantOrdersPage: React.FC = () => {
                       )}
                       {order.status === 'preparing' && (
                         <button
-                          onClick={() => handleStatusChange(order.id, 'ready')}
+                          onClick={() => handleUpdateStatus(order.id, 'ready')}
                           className="flex-1 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-xl transition-all"
                         >
                           Mark Ready
@@ -249,7 +229,7 @@ export const MerchantOrdersPage: React.FC = () => {
                       )}
                       {order.status === 'ready' && (
                         <button
-                          onClick={() => handleStatusChange(order.id, 'delivered')}
+                          onClick={() => handleUpdateStatus(order.id, 'delivered')}
                           className="flex-1 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-all"
                         >
                           Mark Delivered
@@ -308,15 +288,15 @@ export const MerchantOrdersPage: React.FC = () => {
               <div>
                 <h3 className="font-semibold text-stone-800 dark:text-stone-100 mb-2">Customer</h3>
                 <p className="text-stone-600 dark:text-stone-400">{selectedOrder.customerName}</p>
-                <p className="text-stone-600 dark:text-stone-400">{selectedOrder.phone}</p>
+                <p className="text-stone-600 dark:text-stone-400">{selectedOrder.customerPhone}</p>
               </div>
               <div>
                 <h3 className="font-semibold text-stone-800 dark:text-stone-100 mb-2">Delivery Address</h3>
-                <p className="text-stone-600 dark:text-stone-400">{selectedOrder.address}</p>
+                <p className="text-stone-600 dark:text-stone-400">{selectedOrder.customerAddress}</p>
               </div>
               <div>
                 <h3 className="font-semibold text-stone-800 dark:text-stone-100 mb-2">Order Time</h3>
-                <p className="text-stone-600 dark:text-stone-400">{formatDate(selectedOrder.date)}</p>
+                <p className="text-stone-600 dark:text-stone-400">{formatDate(selectedOrder.createdAt)}</p>
               </div>
               <div className="pt-4 border-t border-stone-200 dark:border-stone-700">
                 <div className="flex justify-between text-xl font-bold">
